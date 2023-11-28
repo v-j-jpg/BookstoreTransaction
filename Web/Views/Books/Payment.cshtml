@@ -1,0 +1,117 @@
+﻿@model CommonLibrary.Model.Customer
+
+@{
+    ViewData["Title"] = "Payment";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>Buy A Book</h1>
+
+<h4>Hi new Customer!</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4 card shadow border-0 mt-2 card shadow border-0">
+        <form action="Buy" method="post" class="row">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="FirstName" class="control-label"></label>
+                <input asp-for="FirstName" class="form-control" />
+                <span asp-validation-for="FirstName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="LastName" class="control-label"></label>
+                <input asp-for="LastName" class="form-control" />
+                <span asp-validation-for="LastName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Address" class="control-label"></label>
+                <input asp-for="Address" class="form-control" />
+                <span asp-validation-for="Address" class="text-danger"></span>
+            </div>
+            <div class="col-12 mt-4">
+                <div class="card p-3">
+                    <p class="mb-0 fw-bold h4">Payment Methods</p>
+                </div>
+            </div>
+            <div class="col-12">
+                    <div class="card-body border p-0">
+                        <p>
+                            <a class="btn btn-outline-primary p-2 w-100 h-100 d-flex align-items-center justify-content-between"
+                               data-bs-toggle="collapse" href="#collapseExample" role="button" aria-expanded="true"
+                               aria-controls="collapseExample">
+                                <span class="fw-bold">Credit Card</span>
+                                <span class="card-group">
+                                    <i class="fa-brands fa-cc-apple-pay"></i>
+                                    <i class="fa-brands fa-cc-visa"></i>
+                                    <i class="fa-brands fa-cc-mastercard"></i>
+                                </span>
+                            </a>
+                        </p>
+                        <div class="collapse show p-3 pt-0" id="collapseExample">
+                            <div class="row">
+                            <div class="col mb-lg-0 mb-3">
+                                <p class="h4 mb-0">Summary</p>
+                                <p class="mb-0">
+                                    <span class="fw-bold">Product:</span><span class="c-green">
+                                        : @ViewBag.BookTitle
+                                    </span>
+                                </p>
+                                <p class="mb-0">
+                                    <span class="fw-bold">Price:</span>
+                                    <span class="fw-bold c-green" style="color:greenyellow"> $@ViewBag.price</span>
+                                </p>
+                                <p class="mb-0">
+                                    @ViewBag.BookDescription
+                                </p>
+                                <p class="mb-0">
+                                    <div class="alert alert-@ViewBag.isBookValid alert-heading" role="alert">@ViewBag.AlertMessage</div>
+                                </p>
+                            </div>
+                                <div class="col">
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="form-group form__div">
+                                                    <input asp-for="BankCardNumber" type="number"class="form-control" placeholder="CARD NUMBER" />
+                                                    <span asp-validation-for="BankCardNumber" class="text-danger"></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-6">
+                                                <div class="form__div">
+                                                    <input asp-for="ExpirationDate" type="text" class="form-control col-2" placeholder="MM / yy">
+                                                    <span asp-validation-for="ExpirationDate" class="text-danger"></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-6">
+                                                <div class="form__div">
+                                                <input asp-for="CVV" type="password" class="form-control" placeholder="CVV">
+                                                <span asp-validation-for="CVV" class="text-danger"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="form__div">
+                                                <input asp-for="NameOnCard" type="text" class="form-control" placeholder="NAME ON THE CARD">
+                                                <span asp-validation-for="NameOnCard" class="text-danger"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+            <div class="form-group pt-2">
+                <button class="btn btn-primary btn-lg border form-control">
+                    Buy
+                </button>
+            </div>
+        </form>
+    </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

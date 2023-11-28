@@ -1,0 +1,65 @@
+﻿@model IEnumerable<CommonLibrary.Model.Book>
+
+@{
+    ViewData["Title"] = "List All Books";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>List of All Books</h1>
+
+<p>
+    <a asp-action="AddBook">Add A Book</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.BookID)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.BookTitle)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.BookDescription)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.BookAuthor)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Price)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Quantity)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.BookID)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.BookTitle)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.BookDescription)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.BookAuthor)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Price)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Quantity)
+                    </td>
+                    <td>
+                        @Html.ActionLink("Payment", "Payment", new {  id=item.BookID})
+                    </td>
+                </tr>
+            }
+    </tbody>
+</table>
