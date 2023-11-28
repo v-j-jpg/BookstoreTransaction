@@ -15,10 +15,10 @@ namespace CommonLibrary.Interface
         Task<List<string>> ListClients();
 
         [OperationContract]
-        Task EnlistMoneyTransfer(string userID, double amount);
+        Task EnlistMoneyTransfer(long userID, double amount);
 
         [OperationContract]
-        Task<bool> isClientValid(string user);
+        Task<string> GetValidClient(string user);
 
     }
 }

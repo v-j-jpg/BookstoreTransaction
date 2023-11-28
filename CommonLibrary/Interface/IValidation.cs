@@ -25,7 +25,7 @@ namespace CommonLibrary.Interface
         Task<List<string>> GetAllClients();
 
         [OperationContract]
-        Task<bool> isClientValid(Customer customer);
+        Task<string> GetValidClient(Customer customer);
 
     }
 }

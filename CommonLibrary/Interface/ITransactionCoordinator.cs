@@ -22,6 +22,15 @@ namespace CommonLibrary.Interface
         Task<string?> GetBook(long bookID);
 
         [OperationContract]
-        Task<bool> isClientValid(string client);
+        Task<string> GetValidClient(string client);
+
+        [OperationContract]
+        Task<bool> Prepare(long bookID, long clientID);
+
+        [OperationContract]
+        Task<bool> Commit();
+
+        [OperationContract]
+        Task<bool> Rollback();
     }
 }

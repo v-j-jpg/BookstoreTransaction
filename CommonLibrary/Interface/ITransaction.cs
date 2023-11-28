@@ -18,7 +18,7 @@ namespace CommonLibrary.Interface
         Task<bool> Commit();
 
         [OperationContract]
-        Task  Rollback();
+        Task<bool> Rollback();
 
     }
 }

@@ -24,14 +24,17 @@ namespace BookstoreService
     internal sealed class BookstoreService : StatefulService, IBookstore
     {
         public IReliableDictionary<long, Book>? bookDictionary;
+        private long bookID;
+        private uint count;
 
         public BookstoreService(StatefulServiceContext context)
             : base(context)
         { }
 
-        public Task EnlistPurchase(string bookID, uint count)
+        public async Task EnlistPurchase(long bookID, uint count)
         {
-            throw new NotImplementedException();
+            this.bookID = bookID;
+            this.count = count;
         }
 
         public Task<double> GetItemPrice(string bookID)
@@ -132,11 +135,6 @@ namespace BookstoreService
             }
         }
 
-        public Task EnlistPurchase(long bookID, uint count)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<double> GetItemPrice(long bookID)
         {
             throw new NotImplementedException();
@@ -159,19 +157,54 @@ namespace BookstoreService
            
         }
 
-        public Task<bool> Prepare()
+        public async Task<bool> Prepare()
         {
-            throw new NotImplementedException();
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Book item = (await books.TryGetValueAsync(tx, bookID)).Value;
+                
+                if (item != null && item.Quantity >= count)
+                {
+                    await temp.TryRemoveAsync(tx, 1);
+                    await temp.AddAsync(tx, 1, item);
+                    await tx.CommitAsync();
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        public Task<bool> Commit()
+        public async Task<bool> Commit()
         {
-            throw new NotImplementedException();
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Book book = (await books.TryGetValueAsync(tx, bookID)).Value;
+                book.Quantity = book.Quantity - count;
+                await tx.CommitAsync();
+            }
+            return true;
         }
 
-        public Task Rollback()
+        public async Task<bool> Rollback()
         {
-            throw new NotImplementedException();
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books2");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Book prep = (await temp.TryGetValueAsync(tx, 1)).Value;
+                Book book = (await books.TryGetValueAsync(tx, prep.BookID)).Value;
+                book.Quantity = prep.Quantity;
+                await tx.CommitAsync();
+            }
+
+            return true;
         }
     }
 }

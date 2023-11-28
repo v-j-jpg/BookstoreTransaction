@@ -22,34 +22,49 @@ namespace Bank
     internal sealed class Bank : StatefulService, IBank
     {
         public IReliableDictionary<long, Customer>? customerDictionary;
+        private long clientID = 0;
+        private double amount = 0;
 
         public Bank(StatefulServiceContext context)
             : base(context)
         {
-            
-        }
-        public Task<bool> Commit()
-        {
-            throw new NotImplementedException();
+
         }
 
-        public Task EnlistMoneyTransfer(string userID, double amount)
+        public async Task<bool> Commit()
         {
-            throw new NotImplementedException();
+            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Customer client = (await clients.TryGetValueAsync(tx, clientID)).Value;
+                client.Money = client.Money - amount;
+                await tx.CommitAsync();
+            }
+            return true;
         }
 
-        public async Task<bool> isClientValid(string user)
+        public async Task EnlistMoneyTransfer(long clientID, double amount)
         {
+            this.clientID = clientID;
+            this.amount = amount;
+        }
+
+        public async Task<string> GetValidClient(string user)
+        {
+            //customer form info
             Customer? customer = JsonConvert.DeserializeObject<Customer>(user);
+
             customerDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
 
             try
             {
-                using (var transaction = StateManager.CreateTransaction())
+                using (var tx = StateManager.CreateTransaction())
                 {
-                    var client = await customerDictionary!.TryGetValueAsync(transaction, customer!.BankCardNumber);
-                    var isCustomerAClient = client.Value;
-                    return isCustomerAClient.Equals(null) ? false : true;
+                    var client = await customerDictionary!.TryGetValueAsync(tx, customer!.BankCardNumber);
+
+                    //if client has an acc in the bank, the object is returned
+                    return JsonConvert.SerializeObject(client.Value);
                 }
             }
             catch (Exception ex)
@@ -104,14 +119,40 @@ namespace Bank
             }
 
         }
-        public Task<bool> Prepare()
+        public async Task<bool> Prepare()
         {
-            throw new NotImplementedException();
+            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
+            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients2");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Customer item = (await clients.TryGetValueAsync(tx, clientID)).Value;
+
+                if (item != null && item.Money >= amount)
+                {
+                    await temp.TryRemoveAsync(tx, 1);
+                    await temp.AddAsync(tx, 1, item!);
+                    await tx.CommitAsync();
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        public Task Rollback()
+        public async Task<bool> Rollback()
         {
-            throw new NotImplementedException();
+            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
+            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients2");
+
+            using (var tx = StateManager.CreateTransaction())
+            {
+                Customer prep = (await temp.TryGetValueAsync(tx, 1)).Value;
+                Customer account = (await clients.TryGetValueAsync(tx, prep.BankCardNumber)).Value;
+                account.Money = prep.Money;
+                await tx.CommitAsync();
+            }
+            return true;
         }
 
         /// <summary>

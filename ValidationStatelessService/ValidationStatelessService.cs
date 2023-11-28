@@ -47,7 +47,7 @@ namespace ValidationStatelessService
             return await proxy.GetBook(bookID);
         }
 
-        public async Task<bool> isClientValid(Customer user)
+        public async Task<string> GetValidClient(Customer user)
         {
             var isStringPropNull = user.GetType().GetProperties().Where(pi => pi.PropertyType == typeof(string)).Select(pi => (string)pi.GetValue(user)).Any(value => string.IsNullOrEmpty(value));
             var isNumPropNull = user.BankCardNumber.Equals(0) || user.BankCardNumber.Equals(null);
@@ -57,10 +57,12 @@ namespace ValidationStatelessService
             {
                 ITransactionCoordinator proxy = ServiceProxy.Create<ITransactionCoordinator>(new Uri("fabric:/BookstoreTransaction/TransactionCoordinator"), new ServicePartitionKey(1));
                 var convertedCustomer = JsonConvert.SerializeObject(user);
-                return await proxy.isClientValid(convertedCustomer);
+
+                //return bank client acc with money
+                return await proxy.GetValidClient(convertedCustomer);
             }
 
-            return false;
+            return null;
         }
 
         public async Task<bool> Validation(Book book)

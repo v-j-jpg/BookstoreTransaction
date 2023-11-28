@@ -57,17 +57,33 @@ namespace Web.Controllers
 
         [HttpPost]
         [Route("Buy")]
-        public async Task<IActionResult> Buy([FromForm] Customer customer)
+        public async Task<IActionResult> Buy([FromForm] Customer customer, long bookID)
         {
             IValidation proxy = ServiceProxy.Create<IValidation>(new Uri("fabric:/BookstoreTransaction/ValidationStatelessService"));
 
-            //Check client //VALIDATE CLIENT NUM
+            //Check client (Validate if he is a client in the bank) //If so, return his bank acc (with money) 
+            var client = await proxy.GetValidClient(customer);
 
-            var client = await proxy.isClientValid(customer);
-
-            ViewBag.Client = client ? true : false;
 
             //PROCESS WITH PAYMENT
+            ITransactionCoordinator transactionCoordinator = ServiceProxy.Create<ITransactionCoordinator>(new Uri("fabric:/BookstoreTransaction/TranactionCoordinator"));
+            
+            try
+            {
+                var clientID = await transactionCoordinator.Prepare(bookID, customer.BankCardNumber);
+
+                if (!client.Equals(string.Empty) )
+                {
+                    await transactionCoordinator.Commit();
+                    ViewBag.Client = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                await transactionCoordinator.Rollback();
+            }
+
+            ViewBag.Client = false;
 
             return View("Index");
         }
