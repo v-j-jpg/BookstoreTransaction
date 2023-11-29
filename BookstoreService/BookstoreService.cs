@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using CommonLibrary;
 using CommonLibrary.Interface;
 using CommonLibrary.Model;
@@ -37,15 +38,9 @@ namespace BookstoreService
             this.count = count;
         }
 
-        public Task<double> GetItemPrice(string bookID)
-        {
-            throw new NotImplementedException();
-        }
-
         public async Task<List<string>> ListAvailableItems()
         {
             bookDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary");
-            AddBooksToBookstore();
 
             var books = new List<string>();
 
@@ -62,9 +57,10 @@ namespace BookstoreService
 
             return books;
         }
-        public async void AddBooksToBookstore()
+        public async Task AddBooksToBookstore()
         {
             BookDatabase database = new BookDatabase();
+            bookDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary");
 
             try
             {
@@ -75,7 +71,9 @@ namespace BookstoreService
                     // Key & value put in temp dictionary (read your own writes),
                     // serialized, redo/undo record is logged & sent to secondary replicas
                     foreach (Book book in database.Books)
-                        await bookDictionary!.AddAsync(tx, book.BookID, book);
+                        await bookDictionary!.AddOrUpdateAsync(tx, book.BookID!, book, (k, v) => v); ;
+
+                   //AddAsync doesn't work if u reload the page
 
                     // CommitAsync sends Commit record to log & secondary replicas
                     // After quorum responds, all locks released
@@ -112,6 +110,7 @@ namespace BookstoreService
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
+            await AddBooksToBookstore();
 
             while (true)
             {
@@ -135,9 +134,22 @@ namespace BookstoreService
             }
         }
 
-        public Task<double> GetItemPrice(long bookID)
+        public async Task<double?> GetItemPrice(long bookID)
         {
-            throw new NotImplementedException();
+            try
+            {
+                using (var transaction = StateManager.CreateTransaction())
+                {
+                    var book = await bookDictionary!.TryGetValueAsync(transaction, bookID!);
+
+                    return book.Value.Price;
+                }
+            }
+            catch (Exception ex)
+            {
+
+                throw new NotImplementedException(ex.Message);
+            }
         }
 
         public async Task<string?> GetBook(long bookID)
@@ -159,18 +171,20 @@ namespace BookstoreService
 
         public async Task<bool> Prepare()
         {
-            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
-            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary");
+            //var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary2");
 
             using (var tx = StateManager.CreateTransaction())
             {
                 Book item = (await books.TryGetValueAsync(tx, bookID)).Value;
                 
-                if (item != null && item.Quantity >= count)
+                if (item!.Quantity >= count)
                 {
-                    await temp.TryRemoveAsync(tx, 1);
-                    await temp.AddAsync(tx, 1, item);
-                    await tx.CommitAsync();
+                    //await temp.TryRemoveAsync(tx, 1);
+                    var temp = item;
+                    item.Quantity -= count;
+                    await books.TryUpdateAsync(tx, item.BookID, item,temp);
+                    //await tx.CommitAsync();
                     return true;
                 }
             }
@@ -180,12 +194,10 @@ namespace BookstoreService
 
         public async Task<bool> Commit()
         {
-            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary");
 
             using (var tx = StateManager.CreateTransaction())
             {
-                Book book = (await books.TryGetValueAsync(tx, bookID)).Value;
-                book.Quantity = book.Quantity - count;
                 await tx.CommitAsync();
             }
             return true;
@@ -193,14 +205,14 @@ namespace BookstoreService
 
         public async Task<bool> Rollback()
         {
-            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books");
-            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("Books2");
+            var books = await StateManager.GetOrAddAsync<IReliableDictionary<long, Book>>("bookDictionary");
 
             using (var tx = StateManager.CreateTransaction())
             {
-                Book prep = (await temp.TryGetValueAsync(tx, 1)).Value;
-                Book book = (await books.TryGetValueAsync(tx, prep.BookID)).Value;
-                book.Quantity = prep.Quantity;
+                Book book = (await books.TryGetValueAsync(tx, bookID)).Value;
+                var temp = book;
+                book.Quantity += count;
+                await books.TryUpdateAsync(tx, book.BookID, book, temp);
                 await tx.CommitAsync();
             }
 

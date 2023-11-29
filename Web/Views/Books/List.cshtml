@@ -7,9 +7,6 @@
 
 <h1>List of All Books</h1>
 
-<p>
-    <a asp-action="AddBook">Add A Book</a>
-</p>
 <table class="table">
     <thead>
         <tr>
@@ -30,6 +27,9 @@
             </th>
             <th>
                 @Html.DisplayNameFor(model => model.Quantity)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Count)
             </th>
             <th></th>
         </tr>
@@ -57,7 +57,7 @@
                         @Html.DisplayFor(modelItem => item.Quantity)
                     </td>
                     <td>
-                        @Html.ActionLink("Payment", "Payment", new {  id=item.BookID})
+                    @Html.ActionLink("Buy", "Payment", new {id=item.BookID})
                     </td>
                 </tr>
             }

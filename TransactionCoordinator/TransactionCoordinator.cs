@@ -33,11 +33,11 @@ namespace TransactionCoordinator
 
         public async Task<bool> Commit()
         {
-            //PREPARE BOTH BOOKIE STORE and BANKIE FOR COMMITING
-            CommonLibrary.Interface.ITransaction transactionBank = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
-            CommonLibrary.Interface.ITransaction transactionBookstore = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
+            //COMMIT BOTH Bookstore and Bank
+            IBank bankProxy = ServiceProxy.Create<IBank>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
+            IBookstore bookProxy = ServiceProxy.Create<IBookstore>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
 
-            if(await transactionBank.Commit() && await transactionBookstore.Commit())
+            if (await bankProxy.Commit() && await bookProxy.Commit())
             {
                 return true;
             }
@@ -70,22 +70,19 @@ namespace TransactionCoordinator
             return await proxy.GetValidClient(client);
         }
 
-        public async Task<bool> Prepare(long bookID,long userID)
+        public async Task<bool> Prepare(long bookID,long userID, uint count)
         {
-            //PREPARE BOTH BOOKIE STORE and BANKIE
+            //Prepare both Bookstore and Bank
             IBank bankProxy = ServiceProxy.Create<IBank>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
             IBookstore bookProxy = ServiceProxy.Create<IBookstore>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
 
-            CommonLibrary.Interface.ITransaction transactionBank = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
-            CommonLibrary.Interface.ITransaction transactionBookstore = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
-
-
             var bookPrice = await bookProxy.GetItemPrice(bookID);
 
-            await bankProxy.EnlistMoneyTransfer(userID, bookPrice);
-            await bookProxy.EnlistPurchase(bookID, 1);
+            //Reserve the money and book
+            await bankProxy.EnlistMoneyTransfer(userID, (double)bookPrice * count);
+            await bookProxy.EnlistPurchase(bookID, count);
 
-           if(await transactionBank.Prepare() && await transactionBookstore.Prepare())
+            if (await bankProxy.Prepare() && await bookProxy.Prepare())
             {
                 return true;
             }
@@ -95,13 +92,12 @@ namespace TransactionCoordinator
 
         public async Task<bool> Rollback()
         {
-            //PREPARE BOTH BOOKIE STORE and BANKIE
+            //Rollback both bookstore and bank
+            IBank bankProxy = ServiceProxy.Create<IBank>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
+            IBookstore bookProxy = ServiceProxy.Create<IBookstore>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
 
-            CommonLibrary.Interface.ITransaction transactionBank = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/Bank"), new ServicePartitionKey(1));
-            CommonLibrary.Interface.ITransaction transactionBookstore = ServiceProxy.Create<CommonLibrary.Interface.ITransaction>(new Uri("fabric:/BookstoreTransaction/BookstoreService"), new ServicePartitionKey(1));
-
-            await transactionBank.Rollback();
-            await transactionBookstore.Rollback();
+            await bankProxy.Rollback();
+            await bookProxy.Rollback();
 
             return true;
         }

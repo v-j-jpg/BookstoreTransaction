@@ -28,6 +28,9 @@ namespace CommonLibrary.Model
         [DataMember]
         public uint Quantity { get; set; }
 
+        [DataMember]
+        public uint Count { get; set; } = 1;
+
         public Book(long bookID, string? bookTitle, string? bookDescription, string? bookAuthor, double? price, uint quantity)
         {
             BookID = bookID;

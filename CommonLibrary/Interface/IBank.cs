@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace CommonLibrary.Interface
 {
     [ServiceContract]
-    public interface IBank : IService
+    public interface IBank : ITransaction
     {
         [OperationContract]
         Task<List<string>> ListClients();

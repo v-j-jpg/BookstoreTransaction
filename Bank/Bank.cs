@@ -5,6 +5,7 @@ using System.Fabric;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using CommonLibrary;
 using CommonLibrary.Interface;
 using CommonLibrary.Model;
@@ -28,17 +29,20 @@ namespace Bank
         public Bank(StatefulServiceContext context)
             : base(context)
         {
-
+            //AddClientsToBank();
         }
 
         public async Task<bool> Commit()
         {
-            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
+            var customerDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
 
             using (var tx = StateManager.CreateTransaction())
             {
-                Customer client = (await clients.TryGetValueAsync(tx, clientID)).Value;
-                client.Money = client.Money - amount;
+                //Customer client = (await clients.TryGetValueAsync(tx, clientID)).Value;
+                var client = await customerDictionary!.TryGetValueAsync(tx, clientID);
+
+                //(Customer)client = client!.Money - amount;
+               
                 await tx.CommitAsync();
             }
             return true;
@@ -63,7 +67,7 @@ namespace Bank
                 {
                     var client = await customerDictionary!.TryGetValueAsync(tx, customer!.BankCardNumber);
 
-                    //if client has an acc in the bank, the object is returned
+                    //if client has an acc in the bank, the object will be returned
                     return JsonConvert.SerializeObject(client.Value);
                 }
             }
@@ -76,9 +80,7 @@ namespace Bank
         public async Task<List<string>> ListClients()
         {
             var clients = new List<string>();
-
             customerDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
-            AddClientsToBank();
 
             using (var tx = StateManager.CreateTransaction())
             {
@@ -93,9 +95,11 @@ namespace Bank
 
             return clients;
         }
-        public async void AddClientsToBank()
+        public async Task AddClientsToBank()
         {
             CustomerDatabase database = new CustomerDatabase();
+            customerDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
+
             try
             {
                 // Create a new Transaction object for this partition
@@ -105,7 +109,7 @@ namespace Bank
                     // Key & value put in temp dictionary (read your own writes),
                     // serialized, redo/undo record is logged & sent to secondary replicas
                     foreach (Customer customer in database.Customers)
-                        await customerDictionary!.AddAsync(tx, customer.BankCardNumber, customer);
+                        await customerDictionary!.AddOrUpdateAsync(tx, customer.BankCardNumber!, customer, (k, v) => v);
 
                     // CommitAsync sends Commit record to log & secondary replicas
                     // After quorum responds, all locks released
@@ -121,18 +125,19 @@ namespace Bank
         }
         public async Task<bool> Prepare()
         {
-            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
-            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients2");
+            customerDictionary = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
+            //var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
 
             using (var tx = StateManager.CreateTransaction())
             {
-                Customer item = (await clients.TryGetValueAsync(tx, clientID)).Value;
+                Customer client = (await customerDictionary.TryGetValueAsync(tx, clientID)).Value;
 
-                if (item != null && item.Money >= amount)
+                if (client != null && client.Money >= amount)
                 {
-                    await temp.TryRemoveAsync(tx, 1);
-                    await temp.AddAsync(tx, 1, item!);
-                    await tx.CommitAsync();
+                    //await temp.TryRemoveAsync(tx, item.BankCardNumber);
+                    client.Money-=amount;
+                    await customerDictionary.AddOrUpdateAsync(tx, clientID, client!, (k, v) => v);
+                    //await tx.CommitAsync();
                     return true;
                 }
             }
@@ -142,14 +147,12 @@ namespace Bank
 
         public async Task<bool> Rollback()
         {
-            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients");
-            var temp = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("Clients2");
+            var clients = await StateManager.GetOrAddAsync<IReliableDictionary<long, Customer>>("customerDictionary");
 
             using (var tx = StateManager.CreateTransaction())
             {
-                Customer prep = (await temp.TryGetValueAsync(tx, 1)).Value;
-                Customer account = (await clients.TryGetValueAsync(tx, prep.BankCardNumber)).Value;
-                account.Money = prep.Money;
+                Customer account = (await clients.TryGetValueAsync(tx, clientID)).Value;
+                account.Money += amount;
                 await tx.CommitAsync();
             }
             return true;
@@ -178,6 +181,7 @@ namespace Bank
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
+            await AddClientsToBank();
 
             while (true)
             {

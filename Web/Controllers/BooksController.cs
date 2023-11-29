@@ -2,6 +2,7 @@
 using CommonLibrary.Model;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Remoting.Client;
 using Newtonsoft.Json;
 
@@ -40,57 +41,62 @@ namespace Web.Controllers
         public async Task<IActionResult> Payment(long id)
         {
             IValidation proxy = ServiceProxy.Create<IValidation>(new Uri("fabric:/BookstoreTransaction/ValidationStatelessService"));
-            var book = JsonConvert.DeserializeObject<Book>(await proxy.GetBook(id));
-            
+            var book = await proxy.GetBook(id);
+            var bookCustomerView = JsonConvert.DeserializeObject<BookCustomer>(book);
+
+
             //Check if the book is valid
-            var isBookValid = await proxy.Validation(book!);
+            var isBookValid = await proxy.Validation(JsonConvert.DeserializeObject<Book>(book!));
 
             //Display info for the customer
             ViewBag.isBookValid = isBookValid ? "success" : "danger";
-            ViewBag.AlertMessage = isBookValid ? "Book is available": "Book is currently not available!";
-            ViewBag.price = book!.Price;
-            ViewBag.bookTitle = book.BookTitle;
-            ViewBag.bookDescription = book.BookDescription;
+            ViewBag.AlertMessage = isBookValid ? "Book is available" : "Book is currently not available!";
 
-            return View();
+
+            return View(bookCustomerView);
         }
 
         [HttpPost]
         [Route("Buy")]
-        public async Task<IActionResult> Buy([FromForm] Customer customer, long bookID)
+        public async Task<IActionResult> Buy([FromForm] BookCustomer bookCustomer)
         {
             IValidation proxy = ServiceProxy.Create<IValidation>(new Uri("fabric:/BookstoreTransaction/ValidationStatelessService"));
-
-            //Check client (Validate if he is a client in the bank) //If so, return his bank acc (with money) 
-            var client = await proxy.GetValidClient(customer);
+           
+            //Check client (Validate if he is a client of the bank) //If so, return his bank acc (with money)
+            var client = await proxy.GetValidClient(JsonConvert.DeserializeObject<Customer>(JsonConvert.SerializeObject(bookCustomer)));
 
 
             //PROCESS WITH PAYMENT
-            ITransactionCoordinator transactionCoordinator = ServiceProxy.Create<ITransactionCoordinator>(new Uri("fabric:/BookstoreTransaction/TranactionCoordinator"));
+            ITransactionCoordinator transactionCoordinator = ServiceProxy.Create<ITransactionCoordinator>(new Uri("fabric:/BookstoreTransaction/TransactionCoordinator"), new ServicePartitionKey(1));
             
             try
             {
-                var clientID = await transactionCoordinator.Prepare(bookID, customer.BankCardNumber);
-
-                if (!client.Equals(string.Empty) )
+                if (!client.Equals(string.Empty) && await transactionCoordinator.Prepare(bookCustomer.BookID, bookCustomer.BankCardNumber, bookCustomer.Count))
                 {
                     await transactionCoordinator.Commit();
                     ViewBag.Client = true;
+                    return View("Index");
                 }
+     
             }
             catch (Exception ex)
             {
+                //Some service stoped working
                 await transactionCoordinator.Rollback();
             }
 
+            //Transaction didn't work (no money or books in stock)
             ViewBag.Client = false;
 
             return View("Index");
         }
 
         // GET: BooksController/Details/5
+        [HttpGet]
+        [Route("Details")]
         public ActionResult Details(int id)
         {
+
             return View();
         }
 

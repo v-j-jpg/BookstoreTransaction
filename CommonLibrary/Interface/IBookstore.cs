@@ -20,7 +20,7 @@ namespace CommonLibrary.Interface
         Task EnlistPurchase(long bookID, uint count);
 
         [OperationContract]
-        Task <double> GetItemPrice(long bookID);
+        Task <double?> GetItemPrice(long bookID);
 
         [OperationContract]
         Task<string?> GetBook(long bookID);

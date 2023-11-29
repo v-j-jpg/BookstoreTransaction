@@ -25,7 +25,7 @@ namespace CommonLibrary.Interface
         Task<string> GetValidClient(string client);
 
         [OperationContract]
-        Task<bool> Prepare(long bookID, long clientID);
+        Task<bool> Prepare(long bookID, long clientID, uint count);
 
         [OperationContract]
         Task<bool> Commit();
